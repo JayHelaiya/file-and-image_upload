@@ -1,0 +1,560 @@
+  
+  ---------------------------------------oncreate---------------------------------------------------------------------------
+   iv_filepage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+
+                if (ContextCompat.checkSelfPermission(activity,
+                        android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+                        || ContextCompat.checkSelfPermission(activity,
+                        android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                    ActivityCompat.requestPermissions(activity,
+                            new String[]{android.Manifest.permission.CAMERA,
+                                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                            Utility.REQUEST_PERMISSION_CAMERA);
+                } else {
+                    Intent intent = new Intent();
+                    intent.setType("application/msword");
+                    intent.setAction(Intent.ACTION_GET_CONTENT);
+                    startActivityForResult(intent, ACTION_FILE);
+
+                }
+
+            }
+        });
+        iv_coverpage.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (CC.isOnline()) {
+                    AlertDialog.Builder builder = new AlertDialog.Builder(activity);
+                    builder.setTitle("Choose Cover Image");
+                    builder.setItems(new CharSequence[]{"Gallery", "Camera"},
+                            new DialogInterface.OnClickListener() {
+
+                                @Override
+                                public void onClick(DialogInterface dialog, int which) {
+                                    switch (which) {
+                                        case 0:
+
+                                            if (ContextCompat.checkSelfPermission(activity,
+                                                    android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+                                                    || ContextCompat.checkSelfPermission(activity,
+                                                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                                                ActivityCompat.requestPermissions(activity,
+                                                        new String[]{android.Manifest.permission.CAMERA,
+                                                                android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                                                        Utility.REQUEST_PERMISSION_CAMERA);
+                                            } else {
+
+                                                Intent intImage = new Intent(
+                                                        Intent.ACTION_PICK,
+                                                        android.provider.MediaStore.Images.Media.EXTERNAL_CONTENT_URI);
+                                                startActivityForResult(intImage, ACTION_REQUEST_GALLERY);
+                                            }
+                                            break;
+                                        case 1:
+
+                                            if (ContextCompat.checkSelfPermission(activity,
+                                                    android.Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED
+                                                    || ContextCompat.checkSelfPermission(activity,
+                                                    android.Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+                                                ActivityCompat.requestPermissions(activity,
+                                                        new String[]{android.Manifest.permission.CAMERA,
+                                                                android.Manifest.permission.WRITE_EXTERNAL_STORAGE},
+                                                        Utility.REQUEST_PERMISSION_CAMERA);
+                                            } else {
+                                                captureImage();
+                                            }
+
+                                            break;
+
+                                        default:
+                                            break;
+                                    }
+                                }
+                            });
+                    builder.show();
+
+                } else {
+                    MessageUtils.showToast(activity, R.string.msg_no_internet);
+                }
+            }
+        });
+-----------------------------------------------------------end-------------------------------------------------------
+
+-------------------------------------------------------onActivityResult start--------------------------------------------------------------
+
+  
+      public void onActivityResult(int requestCode, int resultCode, Intent data) {
+
+
+        switch (requestCode) {
+            case ACTION_REQUEST_GALLERY:
+
+
+                if (resultCode == Activity.RESULT_OK && null != data) {
+                    Uri selectedImageURL = data.getData();
+
+                    Log.e("from",selectedImageURL+"");
+                    String[] filePathColumn = {MediaStore.Images.Media.DATA};
+
+
+                    Cursor cursor = activity.getContentResolver().query(selectedImageURL,
+                            filePathColumn, null, null, null);
+                    cursor.moveToFirst();
+
+                    int columnIndex = cursor.getColumnIndex(filePathColumn[0]);
+                    String picturePath = cursor.getString(columnIndex);
+
+                    Log.e("PATH in OnAct", picturePath + "");
+                    cursor.close();
+
+                    if (picturePath != null) {
+                        Log.e("from phone",picturePath+"");
+                       // Utility.showToast(activity.getApplicationContext(), "image is selected from phone storage");
+                        decodeFile(picturePath);
+                    }
+                    else
+                    {
+                        Log.e("OUT","image is selected out of phone storage");
+                      //  Utility.showToast(activity.getApplicationContext(), "image is selected out of phone storage");
+                        String filepath=null;
+                        try {
+                            String fileName = new SimpleDateFormat("yyyyMMddhhmm").format(new Date());
+                            String folder_path=create_filePath();
+                            filepath=savefile(fileName,selectedImageURL,folder_path);
+
+                            if (filepath != null) {
+                                Log.e("out phone",filepath+"");
+                                decodeFile(filepath);
+                            }
+
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                } else {
+
+                }
+                break;
+
+            case ACTION_REQUEST_CAMERA:
+
+                if (resultCode != Activity.RESULT_CANCELED) {
+
+                    filedirect = new File(FilesUtils.getFilePath(activity));
+                    if (!filedirect.exists()) filedirect.getParentFile().mkdirs();
+                    {
+                        Log.e("Writing Path", filedirect.getAbsolutePath());
+                    }
+                    String imagepath = convertImageUriToFile(imageUri, activity);
+
+                    Log.e("CAP_IMG PATH", imagepath);
+                    decodeFile(imagepath);
+
+                } else {
+                    Toast.makeText(activity.getApplicationContext(), "image not selected", Toast.LENGTH_SHORT).show();
+                }
+
+                break;
+
+            case ACTION_FILE:
+                if (resultCode == Activity.RESULT_OK) {
+
+                    long length;
+                    long length1;
+                    try {
+
+                        // Get the Uri of the selected file
+                        Uri uri = data.getData();
+                        String uriString = uri.toString();
+                        Log.e(TAG, "uriString ==>" + uriString);
+                        String filepath = FilesUtils.getRealPathFromURI(activity, uri);
+                        Log.e(TAG, "selected file Path ==>" + filepath);
+                        String filename=filepath.substring(filepath.lastIndexOf("/")+1);
+                        Log.e(TAG, "selected file Name j ==>" + filename);
+
+                        String displayName = null;
+                        myfile=new File(filepath);
+
+                    /*
+                        if (length1 <= 2048) {*/
+
+                            if (uriString.startsWith("content://")) {
+                                Cursor cursor1 = null;
+                                try {
+                                    cursor1 = activity.getContentResolver().query(uri, null, null, null, null);
+                                    if (cursor1 != null && cursor1.moveToFirst()) {
+                                        displayName = cursor1.getString(cursor1.getColumnIndex(OpenableColumns.DISPLAY_NAME));
+
+                                    }
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    cursor1.close();
+                                }
+                            } else if (uriString.startsWith("file://")) {
+                                displayName = myfile.getName();
+                            }
+
+                            // COPY FILE
+                            File srcFile = new File(filedirect, displayName);
+                            Log.e("filedirect==>", "" + srcFile.getAbsolutePath());
+
+                            if (displayName.endsWith(".doc")) {
+                                Cursor cursor1 = null;
+                                try {
+
+                                        length = myfile.length();
+                                        length1 = length / 1024;
+
+                                        Log.e("selected file ", length + " KB");
+
+                                        if (length1 <= 2048) {
+                                            Log.e("myFile 1==>", "" + myfile.exists());
+
+
+                                            iv_filepage.setImageResource(0);
+                                            iv_filepage.setImageResource(R.drawable.ic_file_icon_orange);
+
+                                            FilesUtils.copyDirectoryOneLocationToAnotherLocation(myfile, srcFile);
+                                            Log.e("srcFile 1==>", "" + srcFile.exists());
+                                        }
+                                        else {
+                                            filesavedState = false;
+                                            Toast.makeText(activity.getApplicationContext(), "Maximum 2 MB doc/docx file is allowed.", Toast.LENGTH_SHORT).show();
+                                        }
+
+
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    if (cursor1 != null) cursor1.close();
+                                }
+
+                            } else if (displayName.endsWith(".docx")) {
+                                Cursor cursor1 = null;
+                                try {
+
+
+
+                                        length = myfile.length();
+                                        length1 = length / 1024;
+
+                                        Log.e("selected file ", length + " KB");
+
+                                        if (length1 <= 2048) {
+
+                                            Log.e("myFile 1==>", "" + myfile.exists());
+
+
+
+                                            iv_filepage.setImageResource(0);
+                                            iv_filepage.setImageResource(R.drawable.ic_file_icon_orange);
+                                            FilesUtils.copyDirectoryOneLocationToAnotherLocation(myfile, srcFile);
+                                            Log.e("srcFile 1==>", "" + srcFile.exists());
+
+                                            filesavedState = srcFile.exists();
+                                        }
+                                         else {
+                                                 filesavedState = false;
+                                                 Toast.makeText(activity.getApplicationContext(), "Maximum 2 MB doc/docx file is allowed.", Toast.LENGTH_SHORT).show();
+                                              }
+
+
+                                } catch (Exception e) {
+                                    e.printStackTrace();
+                                } finally {
+                                    if (cursor1 != null) cursor1.close();
+                                }
+                            } else {
+                                Toast.makeText(activity, "Only dox/docx file is allowed.", Toast.LENGTH_SHORT).show();
+                            }
+
+
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+                break;
+        }
+
+    }
+    -------------------------------------------------------onActivityResult end--------------------------------------------------------------------
+  
+    public String create_filePath()
+    {
+        File file = new File(Environment
+                .getExternalStorageDirectory().toString()+"/.mb_author");
+
+        if(file.mkdir()) {
+            Log.e("PATH","Directory created");
+        } else {
+            Log.e("PATH","Directory is not created");
+        }
+        Log.e("ABP",file.getAbsolutePath());
+         return file.getAbsolutePath();
+    }
+    public String savefile(String fileName, Uri sourceuri, String destination)
+            throws IOException {
+
+        int originalsize = 0;
+        InputStream input = null;
+        try {
+            input = getContentResolver().openInputStream(sourceuri);
+
+            Log.e("EX1",input+"");
+
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+
+            Log.e("EX","file not found1");
+
+        }
+
+        try {
+            originalsize = input.available();
+            Log.e("u name",fileName);
+
+            BufferedInputStream bis = null;
+            BufferedOutputStream bos = null;
+            try {
+                bis = new BufferedInputStream(input);
+                bos = new BufferedOutputStream(new FileOutputStream(
+                        destination + "/" + fileName + ".jpg", false));
+                byte[] buf = new byte[originalsize];
+                bis.read(buf);
+                do {
+                    bos.write(buf);
+                } while (bis.read(buf) != -1);
+                return destination + "/" + fileName + ".jpg";
+
+            } catch (IOException e) {
+
+                Log.e("EX","file not found2");
+
+
+            }
+
+        } catch (NullPointerException e1) {
+            Log.e("EX","Null pointer Exception.");
+        }
+
+        return null;
+    }
+
+    public static String convertImageUriToFile(Uri imageUri, Activity activity) {
+
+        String Path = null;
+        Cursor cursor = null;
+        int imageID = 0;
+
+        try {
+
+            /*********** Which columns values want to get *******/
+            String[] proj = {
+                    MediaStore.Images.Media.DATA,
+                    MediaStore.Images.Media._ID,
+                    MediaStore.Images.Thumbnails._ID,
+                    MediaStore.Images.ImageColumns.ORIENTATION
+            };
+
+            cursor = activity.managedQuery(
+
+                    imageUri,         //  Get data for specific image URI
+                    proj,             //  Which columns to return
+                    null,             //  WHERE clause; which rows to return (all rows)
+                    null,             //  WHERE clause selection arguments (none)
+                    null              //  Order-by clause (ascending by name)
+
+            );
+
+            //  Get Query Data
+
+            int columnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID);
+            int columnIndexThumb = cursor.getColumnIndexOrThrow(MediaStore.Images.Thumbnails._ID);
+            int file_ColumnIndex = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATA);
+
+            //int orientation_ColumnIndex = cursor.
+            //    getColumnIndexOrThrow(MediaStore.Images.ImageColumns.ORIENTATION);
+
+            int size = cursor.getCount();
+
+            /*******  If size is 0, there are no images on the SD Card. *****/
+
+            if (size == 0) {
+
+
+            } else {
+
+                int thumbID = 0;
+                if (cursor.moveToFirst()) {
+
+                    /**************** Captured image details ************/
+
+                    /*****  Used to show image on view in LoadImagesFromSDCard class ******/
+                    imageID = cursor.getInt(columnIndex);
+
+                    thumbID = cursor.getInt(columnIndexThumb);
+
+                    Path = cursor.getString(file_ColumnIndex);
+
+
+                    //String orientation =  cursor.getString(orientation_ColumnIndex);
+
+                    String CapturedImageDetails = " CapturedImageDetails : \n\n"
+                            + " ImageID :" + imageID + "\n"
+                            + " ThumbID :" + thumbID + "\n"
+                            + " Path :" + Path + "\n";
+
+                    Log.e("PATH", Path);
+
+                    return Path;
+                }
+            }
+        } finally {
+            /*if (cursor != null) {
+                cursor.close();
+            }*/
+        }
+
+        // Return Captured Image ImageID ( By this ImageID Image will load from sdcard )
+
+
+        return Path;
+    }
+    
+    public void captureImage() {
+        /*************************** Camera Intent Start ************************/
+
+        // Define the file-name to save photo taken by Camera activity
+
+        String fileName = "Camera_Example.png";
+
+        // Create parameters for Intent with filename
+
+        ContentValues values = new ContentValues();
+
+        values.put(MediaStore.Images.Media.TITLE, fileName);
+
+
+        values.put(MediaStore.Images.Media.DESCRIPTION, "Image capture by camera");
+
+        // imageUri is the current activity attribute, define and save it for later usage
+
+        imageUri = activity.getContentResolver().insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI, values);
+
+        /**** EXTERNAL_CONTENT_URI : style URI for the "primary" external storage volume. ****/
+
+
+        // Standard Intent action that can be sent to have the camera
+        // application capture an image and return it.
+
+        Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+
+        intent.putExtra(MediaStore.EXTRA_OUTPUT, imageUri);
+
+        intent.putExtra(MediaStore.EXTRA_VIDEO_QUALITY, 1);
+
+        startActivityForResult(intent, ACTION_REQUEST_CAMERA);
+
+
+    }
+    public Bitmap rotateImage(String filePath) {
+
+        // Decode image size
+        BitmapFactory.Options o = new BitmapFactory.Options();
+        o.inJustDecodeBounds = true;
+        BitmapFactory.decodeFile(filePath, o);
+
+        // The new size we want to scale to
+        final int REQUIRED_SIZE = 1024;
+
+        // Find the correct scale value. It should be the power of 2.
+        int width_tmp = o.outWidth, height_tmp = o.outHeight;
+        int scale = 1;
+        while (true) {
+            if (width_tmp < REQUIRED_SIZE && height_tmp < REQUIRED_SIZE)
+                break;
+            width_tmp /= 2;
+            height_tmp /= 2;
+            scale *= 2;
+        }
+
+        // Decode with inSampleSize
+        BitmapFactory.Options o2 = new BitmapFactory.Options();
+        o2.inSampleSize = scale;
+        bitmap = BitmapFactory.decodeFile(filePath, o2);
+
+        ExifInterface ei = null;
+        try {
+            ei = new ExifInterface(filePath);
+        } catch (IOException e) {
+            // TODO Auto-generated catch block
+            Log.e("ExifInterface ", "" + e.toString());
+            e.printStackTrace();
+        }
+        int orientation = ei.getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL);
+        Log.e("orientation == ", "" + orientation);
+        int rotate = 0;
+        switch (orientation) {
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                rotate = 270;
+                break;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+                rotate = 180;
+                break;
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                rotate = 90;
+                break;
+        }
+
+        Matrix matrix = new Matrix();
+        matrix.preRotate(rotate);
+        bitmap = Bitmap.createBitmap(bitmap, 0, 0, bitmap.getWidth(),
+                bitmap.getHeight(), matrix, true);
+
+        return bitmap;
+    }
+
+    public void decodeFile(String filePath) {
+
+
+        Bitmap bitmap = rotateImage(filePath);
+
+        File f = new File(filePath);
+        if (f.exists()) {
+
+            double bytes = f.length();
+            double kilobytes = (double) bytes / 1024;
+            double megabytes = (kilobytes / 1024);
+
+            Log.e("CAP", "saved ...ok jai ");
+            Log.e("after kB : ", kilobytes + "");
+            Log.e("after MB : ", megabytes + "");
+
+            if (kilobytes <= 2048) {
+                Log.e("ABP", imagePath);
+                imagePath = f.getAbsolutePath();
+
+                int height=iv_coverpage.getLayoutParams().height;
+                int width=iv_coverpage.getLayoutParams().width;
+                iv_coverpage.setImageBitmap(bitmap);
+                iv_coverpage.getLayoutParams().width=width;
+                iv_coverpage.getLayoutParams().height=height;
+            } else {
+                Utility.showToast(activity, "Maximum 2 MB Image file is allowed.");
+
+            }
+
+
+        } else {
+            Utility.showToast(activity, "please select image");
+
+        }
+
+    }
